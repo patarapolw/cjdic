@@ -38,5 +38,14 @@ export default defineConfig(async () => ({
       // 3. tell vite to ignore watching `src-tauri`
       ignored: ["**/src-tauri/**"],
     },
+    proxy: {
+      // cnpy API server
+      "/api": {
+        target: "https://localhost:5000",
+        changeOrigin: true,
+        secure: false,
+        ws: true,
+      },
+    },
   },
 }));

@@ -13,15 +13,23 @@
         </v-list>
         <v-divider></v-divider>
         <v-list nav density="compact">
+          <v-list-item
+            prepend-icon="mdi-chat-question"
+            title="Quiz"
+            to="/dashboard"
+          ></v-list-item>
           <v-list-item prepend-icon="mdi-plus" title="Add"></v-list-item>
           <v-list-item prepend-icon="mdi-minus" title="Skip"></v-list-item>
-          <v-list-item prepend-icon="mdi-magnify" title="Search"></v-list-item>
+          <v-list-item
+            prepend-icon="mdi-magnify"
+            title="Search"
+            to="/search"
+          ></v-list-item>
           <v-list-item title="Levels" @click="level = level ? 0 : 3">
             <template v-slot:prepend>
-              <v-avatar v-if="level" color="surface-light">
+              <v-avatar color="surface-light">
                 <span class="text">{{ level }}</span>
               </v-avatar>
-              <v-icon v-else icon="mdi-numeric"></v-icon>
             </template>
           </v-list-item>
           <v-list-item
@@ -45,5 +53,5 @@
 <script setup lang="ts">
 import { ref } from "vue";
 
-const level = ref(0);
+const level = ref(3);
 </script>
