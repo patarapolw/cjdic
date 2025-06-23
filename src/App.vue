@@ -1,7 +1,13 @@
 <template>
   <v-app>
     <v-layout>
-      <v-navigation-drawer expand-on-hover rail :mobile="false">
+      <v-navigation-drawer
+        expand-on-hover
+        rail
+        color="blue-grey-lighten-5"
+        :mobile="false"
+        style="z-index: 10000"
+      >
         <v-list>
           <v-list-item title="Home" to="/">
             <template v-slot:prepend>
@@ -44,13 +50,12 @@
           ></v-list-item>
         </v-list>
       </v-navigation-drawer>
-      <v-container
-        tag="main"
-        style="position: relative; width: 100%; height: 100%"
-      >
-        <RouterView />
+      <main style="position: relative; width: 100%; height: 100%">
+        <v-container>
+          <RouterView />
+        </v-container>
         <Modal default-tab-name="hello" />
-      </v-container>
+      </main>
     </v-layout>
   </v-app>
 </template>
