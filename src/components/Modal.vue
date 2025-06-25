@@ -8,17 +8,15 @@
   >
     <v-card>
       <v-tabs v-model="iTab">
-        <v-tab :value="-1">{{ defaultTabName }}</v-tab>
-        <v-tab v-for="(t, i) in tabNames" :key="i" :value="i">{{ t }} </v-tab>
+        <v-tab v-for="(t, i) in modalTabs" :key="i" :value="i">
+          {{ t.title }}
+        </v-tab>
       </v-tabs>
 
       <v-card-text>
         <v-tabs-window v-model="iTab">
-          <v-tabs-window-item :value="-1">
-            <component :is="defaultNode" />
-          </v-tabs-window-item>
-          <v-tabs-window-item v-for="(_, i) in tabNames" :key="i" :value="i">
-            <component :is="nodes[i]" />
+          <v-tabs-window-item v-for="(t, i) in modalTabs" :key="i" :value="i">
+            <Search :q0="t.q" />
           </v-tabs-window-item>
         </v-tabs-window>
       </v-card-text>
@@ -28,33 +26,27 @@
 
 <script setup lang="ts">
 import { ref, watch } from "vue";
-import {
-  defaultNode,
-  defaultTabName,
-  nodes,
-  tabNames,
-} from "../states/tabbed-modal";
+import { modalTabs } from "../states/tabbed-modal";
+import Search from "./Search.vue";
 
 const isModal = ref(false);
-const iTab = ref(-1);
+const iTab = ref(0);
 
-watch(defaultTabName, (t) => {
-  if (t) {
-    isModal.value = true;
-    iTab.value = -1;
-    tabNames.value = [];
-    nodes.value = [];
-  } else {
-    isModal.value = false;
+watch(
+  () => modalTabs.value[0],
+  (t) => {
+    if (t) {
+      isModal.value = true;
+      iTab.value = 0;
+    } else {
+      isModal.value = false;
+    }
   }
-});
+);
 
 watch(isModal, (b) => {
   if (!b) {
-    if (defaultNode.value) {
-      defaultNode.value = null;
-    }
-    defaultTabName.value = null;
+    modalTabs.value = [];
   }
 });
 </script>

@@ -17,7 +17,7 @@ import { newTab } from "../states/tabbed-modal";
 const q = ref("");
 
 function analyze() {
-  newTab(q.value);
+  newTab({ is: "Search", q: q.value, title: q.value });
 }
 </script>
 

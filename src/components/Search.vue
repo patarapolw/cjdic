@@ -11,7 +11,11 @@
 <script setup lang="ts">
 import { ref } from "vue";
 
-const q = ref("");
+const { q0 } = defineProps({
+  q0: String,
+});
+
+const q = ref(q0 || "");
 
 function doSearch() {}
 </script>
