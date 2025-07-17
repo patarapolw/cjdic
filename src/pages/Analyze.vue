@@ -12,12 +12,15 @@
 
 <script setup lang="ts">
 import { ref } from "vue";
-import { newTab } from "../states/tabbed-modal";
+import { analyzeItems, newTab } from "../states/tabbed-modal";
+import { invoke } from "@tauri-apps/api/core";
 
 const q = ref("");
 
-function analyze() {
-  newTab({ is: "Search", q: q.value, title: q.value });
+async function analyze() {
+  if (!q) return;
+  analyzeItems.value = await invoke("segment", { text: q.value });
+  newTab({ is: "AnalyzeResult", title: "Result", q: q.value });
 }
 </script>
 

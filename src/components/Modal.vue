@@ -16,7 +16,8 @@
       <v-card-text>
         <v-tabs-window v-model="iTab">
           <v-tabs-window-item v-for="(t, i) in modalTabs" :key="i" :value="i">
-            <Search :q0="t.q" />
+            <AnalyzeResult v-if="t.is == 'AnalyzeResult'" />
+            <Search v-else :q0="t.q" />
           </v-tabs-window-item>
         </v-tabs-window>
       </v-card-text>
@@ -28,6 +29,7 @@
 import { ref, watch } from "vue";
 import { modalTabs } from "../states/tabbed-modal";
 import Search from "../pages/Search.vue";
+import AnalyzeResult from "./AnalyzeResult.vue";
 
 const isModal = ref(false);
 const iTab = ref(0);
