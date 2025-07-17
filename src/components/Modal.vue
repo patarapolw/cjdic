@@ -27,7 +27,7 @@
 <script setup lang="ts">
 import { ref, watch } from "vue";
 import { modalTabs } from "../states/tabbed-modal";
-import Search from "./Search.vue";
+import Search from "../pages/Search.vue";
 
 const isModal = ref(false);
 const iTab = ref(0);
