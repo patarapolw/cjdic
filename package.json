@@ -4,12 +4,14 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "tauri-dev": "tauri dev",
-    "tauri-build": "tauri build",
+    "dev:desktop": "tauri dev",
+    "dev:android": "tauri android dev",
+    "build:desktop": "tauri build",
+    "build:android": "tauri android build",
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "init:android": "tauri android init"
   },
   "dependencies": {
     "@mdi/font": "^7.4.47",

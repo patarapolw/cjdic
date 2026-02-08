@@ -10,5 +10,6 @@
   "[jsonc]": {
     "editor.formatOnSave": true
   },
-  "importSorter.generalConfiguration.sortOnBeforeSave": true
+  "importSorter.generalConfiguration.sortOnBeforeSave": true,
+  "json.schemaDownload.enable": false
 }

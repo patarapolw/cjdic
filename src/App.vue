@@ -1,9 +1,14 @@
 <template>
   <v-app>
     <v-layout>
+      <v-app-bar v-if="isMobile">
+        <v-app-bar-nav-icon @click.stop="drawer = !drawer"></v-app-bar-nav-icon>
+      </v-app-bar>
+
       <v-navigation-drawer
-        expand-on-hover
-        rail
+        v-model="drawer"
+        :expand-on-hover="!isMobile"
+        :rail="!isMobile"
         color="blue-grey-lighten-5"
         :mobile="false"
         style="z-index: 10000"
@@ -50,21 +55,25 @@
           ></v-list-item>
         </v-list>
       </v-navigation-drawer>
-      <main class="main">
+      <v-main class="main">
         <v-container>
           <RouterView />
         </v-container>
         <Modal />
-      </main>
+      </v-main>
     </v-layout>
   </v-app>
 </template>
 
 <script setup lang="ts">
 import { ref } from "vue";
+import { useDisplay } from "vuetify";
 import Modal from "./components/Modal.vue";
 
+const { mobile: isMobile } = useDisplay();
+
 const level = ref(3);
+const drawer = ref(!isMobile.value);
 </script>
 
 <style lang="scss" scoped>
