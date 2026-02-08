@@ -8,7 +8,7 @@ import Search from "./pages/Search.vue";
 const router = createRouter({
   history: createWebHistory(),
   routes: [
-    { path: "/", component: Analyze },
+    { path: "/", component: Search },
     { path: "/search", component: Search },
     { path: "/dashboard", component: Dashboard },
     { path: "/analyze", component: Analyze },
