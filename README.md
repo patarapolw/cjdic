@@ -74,6 +74,37 @@ pnpm install:android
 
 Ensure you have a device connected via USB with USB debugging enabled, or an Android emulator running.
 
+#### Signing Release Builds
+
+Android APKs must be signed with a digital certificate to be installable on devices. See the [official Tauri Android signing documentation](https://v2.tauri.app/distribute/sign/android/) for detailed instructions.
+
+**Quick Summary:**
+
+1. **Create a keystore** using `keytool` (PKCS12 format is recommended over JKS):
+   ```bash
+   keytool -genkey -v -keystore ~/upload-keystore.p12 -keyalg RSA -keysize 2048 -validity 10000 -alias upload -storetype PKCS12
+   ```
+
+2. **Create a keystore.properties file** at `src-tauri/gen/android/keystore.properties`:
+   ```properties
+   password=<password from keytool>
+   keyAlias=upload
+   storeFile=<path to upload-keystore.p12>
+   ```
+   > Keep both the keystore and properties file private; don't commit them to version control.
+
+3. **Configure Gradle** in `src-tauri/gen/android/app/build.gradle.kts` to use the signing key for release builds.
+
+For CI/CD environments (e.g., GitHub Actions), use secrets to securely pass the keystore and credentials.
+
+#### Testing Mobile Screen Size on Desktop
+
+To test responsive design for mobile during development without deploying to a device:
+
+**Using Tauri Mobile Configuration:**
+   - Edit `src-tauri/tauri.mobile.conf.json` to adjust the window size for testing
+   - Run `pnpm dev:mobile` to test with mobile-specific settings
+
 ## Type Support For `.vue` Imports in TS
 
 Since TypeScript cannot handle type information for `.vue` imports, they are shimmed to be a generic Vue component type by default. In most cases this is fine if you don't really care about component prop types outside of templates. However, if you wish to get actual prop types in `.vue` imports (for example to get props validation when using manual `h(...)` calls), you can enable Volar's Take Over mode by following these steps:
