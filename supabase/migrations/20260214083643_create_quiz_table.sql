@@ -1,12 +1,10 @@
-create extension if not exists "pgcrypto";
-
 create table public.quiz (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null,
-  created_at timestamptz default now(),
-  v text not null,
-  lang  text not null,
-  srs json not null,
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null,
+  created_at  timestamptz default now(),
+  v           text not null,
+  lang        text not null,
+  srs         json not null,
 
   unique(user_id, v, lang)
 );
