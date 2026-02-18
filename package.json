@@ -15,6 +15,7 @@
     "supabase:stop": "supabase stop",
     "supabase:migration:new": "supabase migration new",
     "supabase:migration:up": "supabase migration up",
+    "supabase:types": "supabase gen types typescript --local > supabase.d.ts",
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
@@ -22,6 +23,7 @@
   },
   "dependencies": {
     "@mdi/font": "^7.4.47",
+    "@supabase/supabase-js": "^2.96.0",
     "@tauri-apps/api": "^2.10.1",
     "@tauri-apps/plugin-clipboard-manager": "~2.3.2",
     "@tauri-apps/plugin-opener": "^2.5.3",
@@ -33,6 +35,7 @@
   "devDependencies": {
     "@tauri-apps/cli": "^2.10.0",
     "@vitejs/plugin-vue": "^6.0.4",
+    "dotenv": "^17.3.1",
     "sass": "^1.97.3",
     "supabase": "^2.76.8",
     "typescript": "~5.6.3",
