@@ -7,9 +7,10 @@
   "[typescript]": {
     "editor.formatOnSave": true
   },
-  "[jsonc]": {
+  "[javascript]": {
     "editor.formatOnSave": true
   },
-  "importSorter.generalConfiguration.sortOnBeforeSave": true,
-  "json.schemaDownload.enable": false
+  "[jsonc]": {
+    "editor.formatOnSave": true
+  }
 }
