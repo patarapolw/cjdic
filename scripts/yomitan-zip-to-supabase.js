@@ -5,8 +5,8 @@ import yauzl from "yauzl";
 import crypto from "crypto";
 import dotenv from "dotenv";
 
-/** @import { DictIndex, TermEntry, TermMetaEntry, TagEntry, KanjiEntry, KanjiMetaEntry, Glossary } from '../types/yomitan.d.ts' */
-/** @import { Database, Json } from '../types/supabase-yomitan.d.ts' */
+/** @import { DictIndex, TermEntry, TermMetaEntry, TagEntry, KanjiEntry, KanjiMetaEntry, Glossary } from '../types/yomitan.js' */
+/** @import { Database, Json } from '../types/supabase-yomitan.js' */
 
 dotenv.config({ path: ".env.local" });
 
@@ -16,6 +16,10 @@ const supabaseSecretKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 /** @type {SupabaseClient<Database>} */
 const supabase = createClient(supabaseUrl, supabaseSecretKey, {
   db: { schema: "yomitan" },
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false,
+  },
 });
 
 // ── Config ─────────────────────────────────────────────────────────────────

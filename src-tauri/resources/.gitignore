@@ -1,3 +1,4 @@
 *.zip
-
 # Pixiv_*.zip from https://github.com/MarvNC/pixiv-yomitan/releases
+
+yomitan.db*

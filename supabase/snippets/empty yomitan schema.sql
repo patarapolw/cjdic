@@ -1,0 +1,10 @@
+TRUNCATE TABLE yomitan.terms, 
+             yomitan.term_meta, 
+             yomitan.tags, 
+             yomitan.kanji, 
+             yomitan.kanji_meta, 
+             yomitan.dictionaries, 
+             yomitan.glossaries, 
+             yomitan.def_tag_sets, 
+             yomitan.term_tag_sets, 
+             yomitan.rule_sets CASCADE;
