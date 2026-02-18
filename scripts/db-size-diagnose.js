@@ -2,8 +2,10 @@
 // node diagnose.js src-tauri/resources/yomitan.db
 
 import Database from "better-sqlite3";
+import { dbPath } from "./paths.js";
 
-const dbPath = process.argv[2] ?? "src-tauri/resources/yomitan.db";
+const dbPath = process.argv[2] ?? dbPath;
+
 const db = new Database(dbPath, { readonly: true });
 
 // Dictionary summary

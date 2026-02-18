@@ -7,8 +7,7 @@
 //   node select-terms.js <term> <reading> <db>   custom db path
 
 import Database from "better-sqlite3";
-
-const DEFAULT_DB_PATH = "src-tauri/resources/yomitan.db";
+import { dbPath as DEFAULT_DB_PATH } from "./paths.js";
 
 // ── Args ───────────────────────────────────────────────────────────────────
 

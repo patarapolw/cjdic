@@ -4,6 +4,7 @@ import { existsSync, statSync } from "fs";
 import { createHash } from "crypto";
 import JSZip from "jszip";
 import Database from "better-sqlite3";
+import { dbPath as DEFAULT_DB_PATH } from "./paths.js";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -25,7 +26,6 @@ import Database from "better-sqlite3";
 
 // ── Config ─────────────────────────────────────────────────────────────────
 
-const DEFAULT_DB_PATH = "src-tauri/resources/yomitan.db";
 const SCHEMA_VERSION = "1";
 
 // ── Schema ─────────────────────────────────────────────────────────────────

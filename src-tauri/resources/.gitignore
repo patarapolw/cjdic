@@ -1,4 +1,3 @@
 *.zip
-# Pixiv_*.zip from https://github.com/MarvNC/pixiv-yomitan/releases
-
-yomitan.db*
+# Pixiv_*.zip => Pixiv.zip from https://github.com/MarvNC/pixiv-yomitan/releases
+# JMnedict.zip from https://github.com/yomidevs/jmdict-yomitan/releases
