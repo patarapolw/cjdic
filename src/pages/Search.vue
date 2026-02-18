@@ -24,7 +24,11 @@
                 .join("  \u00b7  ")
             }}
           </summary>
-          <code><pre v-text="stringify(row.glossary)"></pre></code>
+          <ul>
+            <li v-for="(g, j) in row.glossary" :key="j">
+              <GlossaryRenderer :glossary="g" />
+            </li>
+          </ul>
         </details>
       </li>
     </ol>
@@ -34,8 +38,22 @@
 <script setup lang="ts">
 import { readText } from "@tauri-apps/plugin-clipboard-manager";
 import Database from "@tauri-apps/plugin-sql";
-import { stringify } from "yaml";
-import { onBeforeUnmount, onMounted, ref } from "vue";
+import {
+  defineComponent,
+  h,
+  VNode,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+} from "vue";
+import type {
+  Glossary,
+  GlossaryText,
+  GlossaryImage,
+  GlossaryStructuredContent,
+  GlossaryDeinflection,
+  StructuredContentNode,
+} from "../../types/yomitan";
 
 const { q0 } = defineProps({
   q0: String,
@@ -47,6 +65,105 @@ const clipboardPoll = ref<number>();
 const db = ref<Database>();
 
 const entries = ref<any[]>([]);
+
+function renderStructuredContent(node: StructuredContentNode): VNode | string {
+  if (typeof node === "string") {
+    return node;
+  }
+
+  if (Array.isArray(node)) {
+    return h("div", node.map(renderStructuredContent));
+  }
+
+  // Line break
+  if ("tag" in node && node.tag === "br") {
+    return h("br");
+  }
+
+  // Image
+  if ("tag" in node && node.tag === "img") {
+    const img = node as any;
+    return h("img", {
+      src: img.path,
+      width: img.width,
+      height: img.height,
+      alt: img.alt,
+      style: { imageRendering: img.imageRendering || "auto" },
+    });
+  }
+
+  // Link
+  if ("tag" in node && node.tag === "a") {
+    const link = node as any;
+    return h("a", { href: link.href }, [
+      link.content ? renderStructuredContent(link.content) : "",
+    ]);
+  }
+
+  // Block/container elements (span, div, ol, ul, li, ruby, table, etc.)
+  if ("tag" in node) {
+    const block = node as any;
+    const children = block.content
+      ? Array.isArray(block.content)
+        ? block.content.map(renderStructuredContent)
+        : [renderStructuredContent(block.content)]
+      : [];
+
+    return h(
+      block.tag,
+      { style: block.style, title: block.title, open: block.open },
+      children,
+    );
+  }
+
+  return "";
+}
+
+function renderGlossary(glossary: Glossary): VNode | string {
+  // Plain string
+  if (typeof glossary === "string") {
+    return glossary;
+  }
+
+  // GlossaryText
+  if ("type" in glossary && glossary.type === "text") {
+    return (glossary as GlossaryText).text;
+  }
+
+  // GlossaryImage
+  if ("type" in glossary && glossary.type === "image") {
+    const img = glossary as GlossaryImage;
+    return h("img", {
+      src: img.path,
+      width: img.width,
+      height: img.height,
+      title: img.title,
+      alt: img.alt,
+      style: { imageRendering: img.imageRendering || "auto" },
+    });
+  }
+
+  // GlossaryStructuredContent
+  if ("type" in glossary && glossary.type === "structured-content") {
+    const sc = glossary as GlossaryStructuredContent;
+    return renderStructuredContent(sc.content);
+  }
+
+  // GlossaryDeinflection
+  if (Array.isArray(glossary) && glossary.length === 2) {
+    const [term, rules] = glossary as GlossaryDeinflection;
+    return h("small", [`${term} (${rules.join(", ")})`]);
+  }
+
+  return "";
+}
+
+const GlossaryRenderer = defineComponent({
+  props: { glossary: Object },
+  setup(props) {
+    return () => renderGlossary(props.glossary as Glossary);
+  },
+});
 
 function doSearch() {
   if (!db.value) return;
@@ -77,10 +194,9 @@ function doSearch() {
     .then((rs) => {
       entries.value = rs.map((r) => {
         const { glossary_json, ...o } = r;
+        const glossary = JSON.parse(glossary_json);
 
-        return Object.assign(o, {
-          glossary: JSON.parse(glossary_json),
-        });
+        return Object.assign(o, { glossary });
       });
     });
 }
