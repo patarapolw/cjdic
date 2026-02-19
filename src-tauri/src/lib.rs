@@ -7,21 +7,9 @@ use rusqlite::{params, Connection};
 use serde::Serialize;
 use tauri::AppHandle;
 
-#[cfg(feature = "yomitan_import")]
 mod yomitan_import;
 
-#[cfg(feature = "yomitan_import")]
 use yomitan_import::{find_resources_dir, import_bundled_zips};
-
-#[cfg(not(feature = "yomitan_import"))]
-fn find_resources_dir() -> Option<std::path::PathBuf> {
-    None
-}
-
-#[cfg(not(feature = "yomitan_import"))]
-fn import_bundled_zips(_db_path: &std::path::Path, _res: &std::path::Path) -> anyhow::Result<()> {
-    Ok(())
-}
 
 pub mod ja_tokenize;
 
@@ -127,7 +115,17 @@ pub fn run() {
                 } else {
                     let db_path = app_dir.join("yomitan.db");
                     if !db_path.exists() {
-                        if let Err(e) = import_bundled_zips(&db_path, &res) {
+                        // Prefer a `yomitan` subdirectory inside the found resources dir
+                        let res_to_use = {
+                            let cand = res.join("yomitan");
+                            if cand.exists() && cand.is_dir() {
+                                cand
+                            } else {
+                                res
+                            }
+                        };
+
+                        if let Err(e) = import_bundled_zips(&db_path, &res_to_use) {
                             eprintln!("yomitan import failed: {:#?}", e);
                         }
                     }

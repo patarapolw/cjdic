@@ -1,3 +1,2 @@
 *.zip
-# Pixiv_*.zip => Pixiv.zip from https://github.com/MarvNC/pixiv-yomitan/releases
-# JMnedict.zip from https://github.com/yomidevs/jmdict-yomitan/releases
+# *.json.zip from https://github.com/scriptin/jmdict-simplified/releases

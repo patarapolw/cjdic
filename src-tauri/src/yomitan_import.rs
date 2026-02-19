@@ -1,8 +1,7 @@
 use anyhow::Context;
 use rusqlite::{params, Connection, Transaction};
-use serde::Deserialize;
 use serde_json::Value;
-use sha1::{Digest, Sha1};
+use sha1::Sha1;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::Read;
@@ -10,11 +9,11 @@ use std::path::{Path, PathBuf};
 use zip::ZipArchive;
 
 fn sha1_hex(s: &str) -> String {
-    let mut hasher = Sha1::new();
-    hasher.update(s.as_bytes());
-    let digest = hasher.finalize();
-    let mut out = String::with_capacity(digest.len()*2);
-    for b in digest.iter() {
+    // Use the `digest` helper on `Sha1::from` which returns a byte buffer
+    let digest = Sha1::from(s).digest();
+    let bytes = digest.bytes();
+    let mut out = String::with_capacity(bytes.len() * 2);
+    for b in &bytes {
         out.push_str(&format!("{:02x}", b));
     }
     out
@@ -121,8 +120,18 @@ fn intern(
 }
 
 pub fn import_bundled_zips(db_path: &Path, resources_dir: &Path) -> anyhow::Result<()> {
+    // Prefer a `yomitan` subdirectory inside the provided resources dir
+    let search_dir = {
+        let cand = resources_dir.join("yomitan");
+        if cand.exists() && cand.is_dir() {
+            cand
+        } else {
+            resources_dir.to_path_buf()
+        }
+    };
+
     let mut zips = vec![];
-    for entry in std::fs::read_dir(resources_dir).with_context(|| "reading resources dir")? {
+    for entry in std::fs::read_dir(&search_dir).with_context(|| format!("reading resources dir {}", search_dir.display()))? {
         let e = entry?;
         let p = e.path();
         if p.extension().and_then(|s| s.to_str()) == Some("zip") {
@@ -134,14 +143,14 @@ pub fn import_bundled_zips(db_path: &Path, resources_dir: &Path) -> anyhow::Resu
         return Ok(());
     }
 
-    let conn = Connection::open(db_path).with_context(|| format!("opening db {}", db_path.display()))?;
+    let mut conn = Connection::open(db_path).with_context(|| format!("opening db {}", db_path.display()))?;
     create_schema(&conn)?;
 
     for zip_path in zips {
         let f = File::open(&zip_path).with_context(|| format!("opening zip {}", zip_path.display()))?;
         let mut archive = ZipArchive::new(f).with_context(|| "reading zip archive")?;
 
-        let mut index_file = match archive.by_name("index.json") {
+        let index_file = match archive.by_name("index.json") {
             Ok(mut f) => {
                 let mut s = String::new();
                 f.read_to_string(&mut s)?;
@@ -201,8 +210,6 @@ pub fn import_bundled_zips(db_path: &Path, resources_dir: &Path) -> anyhow::Resu
                     let mut s = String::new();
                     f.read_to_string(&mut s)?;
                     let entries: Vec<Value> = serde_json::from_str(&s)?;
-
-                    let bank_tx = conn.transaction()?;
                     for e in entries {
                         let term = e.get(0).and_then(Value::as_str).unwrap_or("");
                         let reading = e.get(1).and_then(Value::as_str).unwrap_or("");
@@ -218,23 +225,23 @@ pub fn import_bundled_zips(db_path: &Path, resources_dir: &Path) -> anyhow::Resu
                         let glossary_id = if let Some(&id) = glossary_cache.get(&hash) {
                             id
                         } else {
-                            bank_tx.execute(insert_glossary, params![hash, glossary_json])?;
-                            let id: i64 = bank_tx.query_row(select_glossary, params![hash], |r| r.get(0))?;
+                            tx.execute(insert_glossary, params![hash, glossary_json])?;
+                            let id: i64 = tx.query_row(select_glossary, params![hash], |r| r.get(0))?;
                             glossary_cache.insert(hash.clone(), id);
                             id
                         };
 
                         let def_id = if let Some(s) = def_tags.as_deref() {
-                            intern(&bank_tx, insert_def, select_def, &mut def_cache, s)?
+                            intern(&tx, insert_def, select_def, &mut def_cache, s)?
                         } else { 0 };
                         let rules_id = if let Some(s) = rules.as_deref() {
-                            intern(&bank_tx, insert_rules, select_rules, &mut rules_cache, s)?
+                            intern(&tx, insert_rules, select_rules, &mut rules_cache, s)?
                         } else { 0 };
                         let term_tags_id = if let Some(s) = term_tags.as_deref() {
-                            intern(&bank_tx, insert_term_tags, select_term_tags, &mut term_tags_cache, s)?
+                            intern(&tx, insert_term_tags, select_term_tags, &mut term_tags_cache, s)?
                         } else { 0 };
 
-                        bank_tx.execute(
+                        tx.execute(
                             insert_term,
                             params![
                                 dict_id,
@@ -249,7 +256,6 @@ pub fn import_bundled_zips(db_path: &Path, resources_dir: &Path) -> anyhow::Resu
                             ],
                         )?;
                     }
-                    bank_tx.commit()?;
                     bank_i += 1;
                     continue;
                 }
@@ -266,15 +272,13 @@ pub fn import_bundled_zips(db_path: &Path, resources_dir: &Path) -> anyhow::Resu
                     let mut s = String::new();
                     f.read_to_string(&mut s)?;
                     let entries: Vec<Value> = serde_json::from_str(&s)?;
-                    let meta_tx = conn.transaction()?;
                     for e in entries {
                         let term = e.get(0).and_then(Value::as_str).unwrap_or("");
                         let mode = e.get(1).and_then(Value::as_str).unwrap_or("");
                         let data = e.get(2).cloned().unwrap_or(Value::Null);
                         let reading = data.get("reading").and_then(Value::as_str).map(|s| s.to_string());
-                        meta_tx.execute(insert_meta, params![dict_id, term, mode, reading, serde_json::to_string(&data)?])?;
+                        tx.execute(insert_meta, params![dict_id, term, mode, reading, serde_json::to_string(&data)?])?;
                     }
-                    meta_tx.commit()?;
                     meta_i += 1;
                     continue;
                 }
@@ -291,16 +295,14 @@ pub fn import_bundled_zips(db_path: &Path, resources_dir: &Path) -> anyhow::Resu
                     let mut s = String::new();
                     f.read_to_string(&mut s)?;
                     let entries: Vec<Value> = serde_json::from_str(&s)?;
-                    let tag_tx = conn.transaction()?;
                     for e in entries {
                         let name = e.get(0).and_then(Value::as_str).unwrap_or("");
                         let category = e.get(1).and_then(Value::as_str);
                         let sort_order = e.get(2).and_then(Value::as_i64).unwrap_or(0);
                         let notes = e.get(3).and_then(Value::as_str);
                         let tag_score = e.get(4).and_then(Value::as_i64).unwrap_or(0);
-                        tag_tx.execute(insert_tag, params![dict_id, name, category, sort_order, notes, tag_score])?;
+                        tx.execute(insert_tag, params![dict_id, name, category, sort_order, notes, tag_score])?;
                     }
-                    tag_tx.commit()?;
                     tag_i += 1;
                     continue;
                 }
