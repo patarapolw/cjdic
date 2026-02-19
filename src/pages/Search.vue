@@ -7,31 +7,41 @@
     ></v-text-field>
   </v-form>
   <div>
-    <ol>
-      <li v-for="(row, i) in entries" :key="i">
-        <details>
-          <summary>
-            {{
-              [
-                `${row.term} \u3010${row.reading}\u3011  [${row.dict_title}]`,
-                row.def_tags && `tags: ${row.def_tags}`,
-                row.rules && `rules: ${row.rules}`,
-                row.term_tags && `termTags: ${row.term_tags}`,
-                `score: ${row.score}`,
-                row.sequence && `seq: ${row.sequence}`,
-              ]
-                .filter(Boolean)
-                .join("  \u00b7  ")
-            }}
-          </summary>
-          <ul>
-            <li v-for="(g, j) in row.glossary" :key="j">
-              <GlossaryRenderer :glossary="g" />
-            </li>
-          </ul>
-        </details>
-      </li>
+    <ol v-if="entries.length">
+      <template v-for="(row, i) in entries" :key="i">
+        <li v-if="i < rowsShown">
+          <details>
+            <summary>
+              {{
+                [
+                  `${row.term} \u3010${row.reading}\u3011  [${row.dict_title}]`,
+                  row.def_tags && `tags: ${row.def_tags}`,
+                  row.rules && `rules: ${row.rules}`,
+                  row.term_tags && `termTags: ${row.term_tags}`,
+                  `score: ${row.score}`,
+                  row.sequence && `seq: ${row.sequence}`,
+                ]
+                  .filter(Boolean)
+                  .join("  \u00b7  ")
+              }}
+            </summary>
+            <ul>
+              <li v-for="(g, j) in row.glossary" :key="j">
+                <GlossaryRenderer :glossary="g" />
+              </li>
+            </ul>
+          </details>
+        </li>
+      </template>
+      <button
+        type="button"
+        v-if="rowsShown < entries.length"
+        @click="rowsShown += maxRows"
+      >
+        More...
+      </button>
     </ol>
+    <div v-else>No results 😿</div>
   </div>
 </template>
 
@@ -45,6 +55,7 @@ import {
   onBeforeUnmount,
   onMounted,
   ref,
+  watch,
 } from "vue";
 import type {
   Glossary,
@@ -54,17 +65,23 @@ import type {
   GlossaryDeinflection,
   StructuredContentNode,
 } from "../../types/yomitan";
+import { openUrl } from "@tauri-apps/plugin-opener";
 
 const { q0 } = defineProps({
   q0: String,
 });
 
 const q = ref(q0 || "");
+const prevQ = ref("");
 const clipboardCurrentText = ref<string>();
 const clipboardPoll = ref<number>();
 const db = ref<Database>();
-
 const entries = ref<any[]>([]);
+
+const maxRows = 25;
+const rowsShown = ref(maxRows);
+
+watch(q, () => doSearch());
 
 function renderStructuredContent(node: StructuredContentNode): VNode | string {
   if (typeof node === "string") {
@@ -88,16 +105,41 @@ function renderStructuredContent(node: StructuredContentNode): VNode | string {
       width: img.width,
       height: img.height,
       alt: img.alt,
-      style: { imageRendering: img.imageRendering || "auto" },
+      style: {
+        imageRendering: img.imageRendering || "auto",
+        width: `${img.width}em`,
+        height: `${img.height}em`,
+      },
     });
   }
 
   // Link
   if ("tag" in node && node.tag === "a") {
     const link = node as any;
-    return h("a", { href: link.href }, [
-      link.content ? renderStructuredContent(link.content) : "",
-    ]);
+    const { href, content } = link;
+
+    return h(
+      "a",
+      {
+        href,
+        onClick: (ev) => {
+          ev.preventDefault();
+          if (typeof href !== "string") return;
+
+          if (/^https?:\/\//.test(href)) {
+            openUrl(href);
+          } else {
+            const querySearch = "?query=";
+            if (href.startsWith(querySearch)) {
+              q.value = href.substring(querySearch.length) + " ";
+            }
+          }
+
+          return false;
+        },
+      },
+      [content ? renderStructuredContent(content) : ""],
+    );
   }
 
   // Block/container elements (span, div, ol, ul, li, ruby, table, etc.)
@@ -166,9 +208,19 @@ const GlossaryRenderer = defineComponent({
 });
 
 function doSearch() {
+  if (!q.value) return;
+  if (prevQ.value === q.value) return;
+  prevQ.value = q.value;
+
   if (!db.value) return;
+
+  const qTerm =
+    q.value.trim().replace(/[%_\\]/g, "\\$&") +
+    (q.value.endsWith(" ") ? "" : "%");
+  const qReading = qTerm;
+
   db.value
-    .select<{ term: string; glossary_json: string }[]>(
+    .select<{ term: string; reading: string; glossary_json: string }[]>(
       `
       SELECT
         t.term,
@@ -186,15 +238,26 @@ function doSearch() {
       LEFT JOIN def_tag_sets  dt ON dt.id = t.def_tags_id
       LEFT JOIN rule_sets      r ON r.id  = t.rules_id
       LEFT JOIN term_tag_sets tt ON tt.id = t.term_tags_id
-      WHERE t.term = ? OR t.reading = ?
+      WHERE t.term LIKE ? ESCAPE '\\' OR t.reading LIKE ? ESCAPE '\\'
       ORDER BY t.score DESC
       `,
-      [q.value, q.value],
+      [qTerm, qReading],
     )
     .then((rs) => {
+      rowsShown.value = maxRows;
+
       entries.value = rs.map((r) => {
         const { glossary_json, ...o } = r;
         const glossary = JSON.parse(glossary_json);
+
+        if (!o.reading) {
+          if (
+            Array.isArray(glossary) &&
+            glossary.every((c) => typeof c === "string")
+          ) {
+            o.reading = glossary.join("; ");
+          }
+        }
 
         return Object.assign(o, { glossary });
       });
