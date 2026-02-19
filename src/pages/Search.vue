@@ -37,7 +37,10 @@
       <button
         type="button"
         v-if="rowsShown < entries.length"
-        @click="rowsShown += maxRows"
+        @click="
+          rowsShown += maxRows;
+          runSearch();
+        "
       >
         More...
       </button>
@@ -73,14 +76,16 @@ const { q0 } = defineProps({
 });
 
 const q = ref(q0 || "");
-const prevQ = ref("");
-const isSearchingQ = ref(false);
-const clipboardCurrentText = ref<string>();
-const clipboardPoll = ref<number>();
 const entries = ref<any[]>([]);
 
 const maxRows = 25;
 const rowsShown = ref(maxRows);
+
+let prevQ = "";
+let searchTimeout = 0;
+let requestId = 0;
+let clipboardCurrentText = "";
+let clipboardPoll = 0;
 
 watch(q, () => doSearch());
 
@@ -209,37 +214,44 @@ const GlossaryRenderer = defineComponent({
 });
 
 function doSearch() {
-  if (!q.value) return;
-  if (prevQ.value === q.value) return;
+  // debounce rapid keystrokes
+  if (searchTimeout) clearTimeout(searchTimeout);
 
-  if (isSearchingQ.value) {
-    setTimeout(() => doSearch(), 1000);
+  if (!q.value) {
+    entries.value = [];
     return;
   }
 
-  prevQ.value = q.value;
+  if (prevQ === q.value) return;
+  prevQ = q.value;
 
+  searchTimeout = window.setTimeout(() => {
+    runSearch(true);
+  }, 250);
+}
+
+function runSearch(isNew = false) {
   const qTerm =
     q.value.trim().replace(/[%_\\]/g, "\\$&") +
     (q.value.endsWith(" ") ? "" : "%");
   const qReading = qTerm;
 
-  isSearchingQ.value = true;
+  const limit = maxRows + 1;
+  const offset = isNew ? 0 : entries.value.length;
 
-  invoke("search_terms", {
+  const thisRequest = ++requestId;
+
+  invoke<any[]>("search_terms", {
     qTerm,
     qReading,
-    limit: maxRows,
-    offset: rowsShown.value,
+    limit,
+    offset,
   })
-    .then((res) => {
-      const rs = res as any[];
+    .then((rs) => {
+      if (thisRequest !== requestId) return; // stale
 
-      entries.value = entries.value.slice(0, rowsShown.value);
-      rowsShown.value = maxRows;
-      entries.value = rs.map((r) => {
+      const mapped = rs.map((r) => {
         const glossary = JSON.parse(r.glossary_json);
-
         if (!r.reading) {
           if (
             Array.isArray(glossary) &&
@@ -248,22 +260,25 @@ function doSearch() {
             r.reading = glossary.join("; ");
           }
         }
-
         return Object.assign(r, { glossary });
       });
+
+      if (isNew) {
+        entries.value = mapped;
+        rowsShown.value = maxRows;
+      } else {
+        entries.value = entries.value.concat(mapped);
+      }
     })
     .catch((e) => {
       console.error("search_terms failed", e);
-    })
-    .finally(() => {
-      isSearchingQ.value = false;
     });
 }
 
 onMounted(() => {
   // DB access happens via Rust `search_terms` command; nothing to open here.
 
-  clipboardPoll.value = window.setInterval(async () => {
+  clipboardPoll = window.setInterval(async () => {
     const newText = await readText().catch((e) => {
       console.error(e);
       return "";
@@ -274,17 +289,17 @@ onMounted(() => {
     //   clipboardCurrentText.value = newText;
     //   return;
     // }
-    if (clipboardCurrentText.value === newText) {
+    if (clipboardCurrentText === newText) {
       return;
     }
 
     q.value = newText;
-    clipboardCurrentText.value = newText;
+    clipboardCurrentText = newText;
   }, 1000);
 });
 
 onBeforeUnmount(() => {
-  clearInterval(clipboardPoll.value);
+  clearInterval(clipboardPoll);
 });
 </script>
 
