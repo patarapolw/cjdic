@@ -3,6 +3,7 @@
     <v-text-field
       v-model="q"
       append-icon="mdi-magnify"
+      autocomplete="off"
       @click:append="doSearch"
     ></v-text-field>
   </v-form>
@@ -47,7 +48,6 @@
 
 <script setup lang="ts">
 import { readText } from "@tauri-apps/plugin-clipboard-manager";
-import Database from "@tauri-apps/plugin-sql";
 import {
   defineComponent,
   h,
@@ -66,6 +66,7 @@ import type {
   StructuredContentNode,
 } from "../../types/yomitan";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { invoke } from "@tauri-apps/api/core";
 
 const { q0 } = defineProps({
   q0: String,
@@ -73,9 +74,9 @@ const { q0 } = defineProps({
 
 const q = ref(q0 || "");
 const prevQ = ref("");
+const isSearchingQ = ref(false);
 const clipboardCurrentText = ref<string>();
 const clipboardPoll = ref<number>();
-const db = ref<Database>();
 const entries = ref<any[]>([]);
 
 const maxRows = 25;
@@ -210,64 +211,57 @@ const GlossaryRenderer = defineComponent({
 function doSearch() {
   if (!q.value) return;
   if (prevQ.value === q.value) return;
-  prevQ.value = q.value;
 
-  if (!db.value) return;
+  if (isSearchingQ.value) {
+    setTimeout(() => doSearch(), 1000);
+    return;
+  }
+
+  prevQ.value = q.value;
 
   const qTerm =
     q.value.trim().replace(/[%_\\]/g, "\\$&") +
     (q.value.endsWith(" ") ? "" : "%");
   const qReading = qTerm;
 
-  db.value
-    .select<{ term: string; reading: string; glossary_json: string }[]>(
-      `
-      SELECT
-        t.term,
-        t.reading,
-        COALESCE(dt.tags,  '')  AS def_tags,
-        COALESCE(r.rules,  '')  AS rules,
-        t.score,
-        g.content               AS glossary_json,
-        t.sequence,
-        COALESCE(tt.tags,  '')  AS term_tags,
-        d.title                 AS dict_title
-      FROM terms t
-      JOIN  glossaries    g  ON g.id  = t.glossary_id
-      JOIN  dictionaries  d  ON d.id  = t.dict_id
-      LEFT JOIN def_tag_sets  dt ON dt.id = t.def_tags_id
-      LEFT JOIN rule_sets      r ON r.id  = t.rules_id
-      LEFT JOIN term_tag_sets tt ON tt.id = t.term_tags_id
-      WHERE t.term LIKE ? ESCAPE '\\' OR t.reading LIKE ? ESCAPE '\\'
-      ORDER BY t.score DESC
-      `,
-      [qTerm, qReading],
-    )
-    .then((rs) => {
+  isSearchingQ.value = true;
+
+  invoke("search_terms", {
+    qTerm,
+    qReading,
+    limit: maxRows,
+    offset: rowsShown.value,
+  })
+    .then((res) => {
+      const rs = res as any[];
+
+      entries.value = entries.value.slice(0, rowsShown.value);
       rowsShown.value = maxRows;
-
       entries.value = rs.map((r) => {
-        const { glossary_json, ...o } = r;
-        const glossary = JSON.parse(glossary_json);
+        const glossary = JSON.parse(r.glossary_json);
 
-        if (!o.reading) {
+        if (!r.reading) {
           if (
             Array.isArray(glossary) &&
             glossary.every((c) => typeof c === "string")
           ) {
-            o.reading = glossary.join("; ");
+            r.reading = glossary.join("; ");
           }
         }
 
-        return Object.assign(o, { glossary });
+        return Object.assign(r, { glossary });
       });
+    })
+    .catch((e) => {
+      console.error("search_terms failed", e);
+    })
+    .finally(() => {
+      isSearchingQ.value = false;
     });
 }
 
 onMounted(() => {
-  Database.load("sqlite:yomitan.db").then((dbVal) => {
-    db.value = dbVal;
-  });
+  // DB access happens via Rust `search_terms` command; nothing to open here.
 
   clipboardPoll.value = window.setInterval(async () => {
     const newText = await readText().catch((e) => {
@@ -291,10 +285,6 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   clearInterval(clipboardPoll.value);
-
-  if (db.value) {
-    db.value.close();
-  }
 });
 </script>
 

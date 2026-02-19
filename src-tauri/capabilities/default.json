@@ -9,7 +9,6 @@
     "core:default",
     "opener:default",
     "clipboard-manager:default",
-    "clipboard-manager:allow-read-text",
-    "sql:default"
+    "clipboard-manager:allow-read-text"
   ]
 }
