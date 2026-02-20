@@ -1,7 +1,7 @@
 //@ts-check
 
 import Database from "better-sqlite3";
-import { readFile } from "fs/promises";
+import { readFile, unlink } from "fs/promises";
 import { MongoClient, Db, Collection } from "mongodb";
 
 /** @import { Kanjidic2, JMnedict, JMdict } from "@scriptin/jmdict-simplified-types" */
@@ -24,6 +24,12 @@ async function buildSQLite(
   mongoUrl = "mongodb://root:example@localhost:27017",
   output = "src-tauri/resources/jmdict.db",
 ) {
+  try {
+    await unlink(output);
+  } catch (e) {
+    console.info(e);
+  }
+
   const outdb = Database(output);
   const client = new MongoClient(mongoUrl);
 
@@ -78,16 +84,26 @@ async function buildSQLite(
 
     outdb.exec(/* sql */ `
       CREATE TABLE IF NOT EXISTS jmne (
-        id            TEXT NOT NULL PRIMARY KEY,
-        kanji         TEXT,   -- string[] from kanji*.text
-        kana          TEXT,   -- string[] from kana*.text
-        translation   TEXT,   -- string[] from translation*.translation*
-        extra         JSON
+        id              TEXT NOT NULL PRIMARY KEY,
+        kanji           TEXT,   -- string[] from kanji*.text
+        kana            TEXT,   -- string[] from kana*.text
+        -- translation  obj[] from translation*.{translation*, type}
+        extra           JSON
       );
 
       CREATE INDEX IF NOT EXISTS jmne_kanji         ON jmne (kanji);
       CREATE INDEX IF NOT EXISTS jmne_kana          ON jmne (kana);
-      CREATE INDEX IF NOT EXISTS jmne_translation   ON jmne (translation);
+
+      CREATE TABLE IF NOT EXISTS jmne_translation (
+        fid           TEXT NOT NULL REFERENCES jmne(id) ON DELETE CASCADE,
+        translation   TEXT NOT NULL,  -- string[] from translation*.translation
+        [type]        TEXT,           -- string[] from translation*.type
+        extra         JSON
+        -- no unique (primary) key
+      );
+      CREATE INDEX IF NOT EXISTS jmne_translation_fid         ON jmne_translation (fid);
+      CREATE INDEX IF NOT EXISTS jmne_translation_translation ON jmne_translation (translation);
+      CREATE INDEX IF NOT EXISTS jmne_translation_type        ON jmne_translation ([type]);
     `);
 
     /**
@@ -97,7 +113,7 @@ async function buildSQLite(
     const flattenValue = (r) => {
       for (const [k, v] of Object.entries(r)) {
         if (v && typeof v === "object") {
-          r[k] = JSON.stringify(v);
+          r[k] = Array.isArray(v) && !v.length ? null : JSON.stringify(v);
         }
       }
       return r;
@@ -176,6 +192,88 @@ async function buildSQLite(
 
       tr(rs);
     }
+
+    outdb.exec("PRAGMA read_uncommitted=true");
+
+    {
+      const stmt = outdb.prepare(`INSERT INTO jmne
+        VALUES (@id, @kanji, @kana, NULL)`);
+
+      const stmtTrans = outdb.prepare(
+        `INSERT INTO jmne_translation VALUES (@fid, @translation, @type, null)`,
+      );
+
+      /** @type {Database.Transaction<(rs: any[]) => void>} */
+      const tr = outdb.transaction((rs) => {
+        rs.map(({ translation, ...r }) => {
+          stmt.run(flattenValue(r));
+
+          /** @type {any[]} */ (translation).map((t) =>
+            stmtTrans.run({ fid: r.id, ...flattenValue(t) }),
+          );
+        });
+      });
+
+      const BATCH = 10000;
+      const rs = [];
+
+      /**
+       *
+       * @param {any[]} ks
+       * @returns
+       */
+      const getText = (ks) => ks.map((k) => k.text);
+      /**
+       *
+       * @param {any[]} ts
+       * @returns
+       */
+      const getTranslation = (ts) =>
+        ts.map(({ translation, ...t }) => {
+          return {
+            ...t,
+            translation: getText(translation),
+          };
+        });
+
+      for await (const r of col.jmne.find()) {
+        const { id, kanji, translation } = r;
+        /** @type {{ text: string; appliesToKanji: string[] }[]} */
+        let kana = r.kana;
+
+        kana = kana.filter((k) => {
+          const { appliesToKanji } = k;
+          if (appliesToKanji.some((a) => a !== "*")) {
+            rs.push({
+              id: id + JSON.stringify(appliesToKanji),
+              kanji: appliesToKanji,
+              kana: [k.text],
+              translation: getTranslation(translation),
+            });
+
+            return false;
+          }
+          return true;
+        });
+
+        if (kana.length) {
+          rs.push({
+            id,
+            kanji: getText(kanji),
+            kana: getText(kana),
+            translation: getTranslation(translation),
+          });
+        }
+
+        if (rs.length > BATCH) {
+          tr(rs.splice(0, BATCH));
+        }
+      }
+
+      tr(rs);
+    }
+
+    outdb.exec("PRAGMA read_uncommitted=false");
   } finally {
     await client.close();
     outdb.close();
@@ -273,5 +371,51 @@ export async function runMongo(
 }
 
 if (import.meta.main) {
+  // await loadToMongo();
   await buildSQLite();
+  // await runMongo(async ({ col }) => {
+  //   const rs = [];
+  //   /**
+  //    *
+  //    * @param {any[]} kanji
+  //    * @returns
+  //    */
+  //   const getKanji = (kanji) => kanji.map((k) => k.text);
+  //   for await (const r of col.jmne
+  //     .find({ kanji: { $gt: [] }, "kana.appliesToKanji": { $ne: "*" } })
+  //     // .skip(Math.floor(Math.random() * 10000))
+  //     .limit(10)
+  //     .project({
+  //       id: 1,
+  //       kanji: 1,
+  //       kana: 1,
+  //       translation: 1,
+  //     })) {
+  //     const { id, kanji, translation } = r;
+  //     /** @type {{ text: string; appliesToKanji: string[] }[]} */
+  //     let kana = r.kana;
+  //     kana = kana.filter((k) => {
+  //       const { appliesToKanji } = k;
+  //       if (appliesToKanji.some((a) => a !== "*")) {
+  //         rs.push({
+  //           id: id + JSON.stringify(appliesToKanji),
+  //           kanji: appliesToKanji,
+  //           kana: [k.text],
+  //           translation: getTranslation(translation),
+  //         });
+  //         return false;
+  //       }
+  //       return true;
+  //     });
+  //     if (kana.length) {
+  //       rs.push({
+  //         id,
+  //         kanji: getKanji(kanji),
+  //         kana: getKana(kana),
+  //         translation: getTranslation(translation),
+  //       });
+  //     }
+  //   }
+  //   console.dir(rs, { depth: null });
+  // });
 }
