@@ -24,7 +24,7 @@
   },
   "bundle": {
     "resources": [
-      "resources/*.zip"
+      "resources/**/*.zip"
     ],
     "active": true,
     "targets": "all",

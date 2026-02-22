@@ -3,6 +3,12 @@
     {
       "path": ".",
     },
+    {
+      "path": "src-tauri",
+    },
+    {
+      "path": "mongo",
+    },
   ],
   "settings": {
     "importSorter.generalConfiguration.sortOnBeforeSave": true,
